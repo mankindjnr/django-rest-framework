@@ -381,3 +381,288 @@ return Response({"errors": serializer.errors}, status=400)
 ```
 
 <h2>REST FRAMEWORK GENERIC VIEWS</h2>
+We will be using the generic views to create our api endpoints.
+
+We will extend the RetrieveAPIView to create a detail view for our product model.
+
+```python
+from rest_framework import generics
+
+from .model import Product
+from .serializers import ProductSerializer
+
+class ProductDetailAPIView(generics.RetrieveAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer # we are serializing the data
+```
+
+DetailApiView gets one single item from the database, and we are using the __queryset__ attribute to get all the items from the database.
+
+We will then create a url in product.urls.py file to handle the detail view.
+
+it is a class based view so we will use the __as_view()__ method.
+```python
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path('<int: pk>', views.ProductDetailAPIView.as_view),
+]
+```
+but you can also do this:
+
+```python
+product_detail_api_view = ProductDetailAPIView.as_view()
+
+urlpatterns = [
+    path('<int: pk>', product_detail_api_view, name='detail'),
+]
+```
+
+<h2>REST FRAMEWOR CREATE API VIEW</h2>
+We will create a create view for our product model.
+
+```python
+from rest_framework import generics
+
+class ProductCreateAPIView(generics.CreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+process_create_view = ProductCreateAPIView.as_view()
+```
+
+The purpose of create view is to create a new instance of the model.
+It provides a post method to create a new instance of the model - creating a new product.
+
+create.py
+```python
+import requests
+
+endpoint = "http://127.0.0.1:8000/api/product/"
+
+data = {
+    "title": "New Product",
+}
+resp = requests.post(endpoint, json=data)
+print(resp.json())
+print(resp.status_code)
+```
+The above snippet will return a 201 status code, which means the request was successful and a new resource was created.
+If the endpoint was called without the __title__ field, it will return a 400 status code, which means the request was not successful. This is because the model requires the __title__ field.
+
+We could also add a function to that class:
+
+```python
+def perform_create(self, serializer):
+        #serializer.save(user=self.request.user)
+        print(serializer.validated_data)
+        title = serializer.validated_data.get("title")
+        content = serializer.validated_data.get("content") or None
+        if content is None:
+            content = title
+        serializer.save(content=content)
+```
+
+<h2>REST FRAMEWORK LIST API VIEW</h2>
+We will create a list view for our product model.
+A list api view is used to get a list of items from the database, it is read only.
+its endpoint represents a collection of model instances i.e products.
+
+
+```python
+from rest_framework import generics
+
+class ProductListAPIView(generics.ListAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+process_list_view = ProductListAPIView.as_view()
+```
+
+we could also use __ListCreateAPIView__ to create a list and create view at the same time.
+This replaces the __ProductCreateAPIView__ and __ProductListAPIView__ classes.
+
+```python
+from rest_framework import generics
+
+class ProductListCreateAPIView(generics.ListCreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+process_list_view = ProductListCreateAPIView.as_view()
+```
+
+With the __ListCreateAPIView__ class, we can create a new product and also get a list of all the products.
+When you use a __post__ method, you call the _create__ function of it and when you send a __get__ request, you call the __list__ function of it.
+
+***
+***
+***
+<H1>NOT RECOMMENDED</H1>
+<h3>USING FUNCTION BASED VIEWS FOR CREATE OR LIST</h3>
+We will create a function based view that will handle both the create and list views.
+
+This will kind of mirror the __ListCreateAPIView__ class, the ListCreateAPIView tends to act according to the method used, if its a get request, the it delivers on the list functionality, if its a post mehtod, then it acts on the create functionality.
+
+Also the mehtod get can be used for detail view.
+
+```python
+
+def product_alt_list_view(request, pk=None, *args, **kwargs):
+    method = request.method
+
+    if method == "GET":
+        if pk is not None:
+            return product_detail_view(request, pk=pk, *args, **kwargs)
+        else:
+            return product_list_view(request, *args, **kwargs)
+
+    elif method == "POST":
+        return product_create_view(request, *args, **kwargs)
+```
+***
+***
+***
+
+<h2>REST FRAMEWORK UPDATE API VIEW</h2>
+To update, the method used is __PUT__ and you can only update an existing product
+
+```python
+lass ProductUpdateAPIView(generics.UpdateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    lookup_field = 'pk'
+
+    def perform_update(self, serializer):
+        #serializer.save(user=self.request.user)
+        instance = serializer.save()
+        if not instance.content:
+            instance.content = instance.title
+            #instance.save()
+
+product_update_api_view = ProductUpdateAPIView.as_view()
+```
+<h4>THE FIELDS</h4>
+__queryset__ - this is the queryset of the model you want to update.
+__serializer_class__ - this is the serializer class you want to use to serialize the data.
+The __lookup_field__ attribute is used to get the instance of the model to be updated.
+
+```python
+import requests
+
+endpoint = "http://127.0.0.1:8000/api/product/update/2/"
+
+data = {
+    "title": "This is a new title",
+    "content": "This is a new content",
+    "price": 9400.00
+}
+resp = requests.put(endpoint, json=data)
+print(resp.json())
+print(resp.status_code)
+```
+
+Here we are passing a new title, new content and a new price as well, the endpoint containes the primary key of the product we will be updating.
+
+We are also passing the updated data as a json object to the endpoint.
+
+<h2>REST FRAMEWORK DELETE API VIEW</h2>
+The method used is the __DELETE__ method and you can only delete an existing product.
+
+```python
+class ProductDestroyAPIView(generics.DestroyAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    lookup_field = 'pk'
+
+    def perform_destroy(self, instance):
+        """if instance is not None:
+            return instance.delete()
+        return None"""
+
+        super().perform_destroy(instance)
+
+product_destroy_api_view = ProductDestroyAPIView.as_view()
+
+```
+
+delete.py
+```python
+import requests
+
+endpoint = "http://127.0.0.1:8000/api/product/delete/14/"
+resp = requests.delete(endpoint)
+print(resp.status_code)
+```
+
+<h2>REST FRAMEWORK MIXINS</h2>
+
+***
+__RE DO__
+***
+
+***
+
+<h2>SESSION AUTHENTICATIONS AND PERMISSIONS</h2>
+involves logging the user in and making user they can do only what they are allowed to do.
+
+<h4>permission classes</h4>
+if the user is authenticated, allow them to do whatever they want, if they are not authenticated, notify them that they are not authenticated.
+
+```python
+from rest_framework import permissions
+
+class ProductListCreateAPIView(generics.ListCreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [permissions.IsAuthenticated]
+```
+With the permission class, goin to the api endpoint, you will get a 403 status code, which means you are not authenticated and therefore forbidden from accessing the resource.
+
+if the permissions class is set:
+```python
+permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+```
+then you will be able to access the resource, but you will not be able to make any changes to it.
+
+To solve the not authorized error, you can sue the authorization class.
+
+```python
+from rest_framework import permissions, authentication
+
+class ProductListCreateAPIView(generics.ListCreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    authentication_classes = [authentication.SessionAuthentication]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+```
+
+I am creating a superuser , logging in to that user and then rerun the listcreateapi view and then i will be able to access the resource. This is because it session based authentication, So as long as i am logged in, i will be able to access the resource.
+
+At this moment i am using the web based interface, but if i use the python client, i will still be unauthorized  since when i run it, it does not log in, hence the session is not created. To create one, you can use selenium. 
+
+
+<h2>USER AND GROUP PERMISSIONS WIHT DJANGO MODEL PERMISSIONS</h2>
+We will be using the django model permissions to create permissions for our users.
+
+After the admin user is created, we are also going to register our models to the admin section to allow us to create groups and permissions. Also allows them to be accessible through the admin section.
+
+Apart from the __admin__ user i created, i have added anotehr user __mannjoro__ who is designated as a __staff__ member.
+
+I have also gone along as the admin, using the admin panel to create a group __staffProductEditor__ with the permission to add, change products. I have also added the __mannjoro__ user to that group. This allows him to have all those permissions given that group.
+
+You can also add permissions directly to the user without having to create a group. click on their name and then add permissions.
+
+```python
+    permission_classes = [permissions.DjangoModelPermissions]
+```
+
+DjangiModelPermissions allows you to use the django model permissions to control access to the api endpoint.
+
+<h2>CUSTOM PERMISSIONS</h2>
+
+
+
+
