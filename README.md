@@ -664,5 +664,22 @@ DjangiModelPermissions allows you to use the django model permissions to control
 <h2>CUSTOM PERMISSIONS</h2>
 
 
+<h2>TOKEN AUTHENTICATION</h2>
+We are implementing token authentication to our api endpoints to enable out python client to access the api endpoints.
 
+in our settings.y file, add the following in the installed apps section.
 
+```python
+    'rest_framework',
+    'rest_framework.authtoken',
+```
+
+in out api application urls.py file:
+    
+```python
+from rest_framework.authtoken.views import obtain_auth_token
+
+urlpatterns = [
+    path('auth/', obtain_auth_token),
+]
+```
